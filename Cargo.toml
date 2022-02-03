@@ -2,7 +2,7 @@
 name = "include-bytes-plus"
 version = "1.0.0"
 authors = ["Douman <douman@gmx.se>"]
-description = "Simple compile-time random generator"
+description = "Improved include_bytes! allowing to reinterpret input differently"
 readme = "README.md"
 repository = "https://github.com/DoumanAsh/include-bytes-plus"
 documentation = "https://docs.rs/include-bytes-plus/"
