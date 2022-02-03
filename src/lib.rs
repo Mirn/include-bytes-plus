@@ -1,4 +1,6 @@
 //! Improved version of Rust's `include_bytes` macro that allows to reinterpret input as differently array.
+//!
+//! Due to inability to capture current file path in the stable Rust, this macro only accepts paths relative to crate's root.
 
 #![warn(missing_docs)]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::style))]
