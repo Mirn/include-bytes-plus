@@ -12,7 +12,7 @@ use core::fmt;
 #[cold]
 #[inline(never)]
 fn compile_error<T: core::fmt::Display>(text: T) -> TokenStream {
-    format!("core::compile_error!(\"{text}\")").parse().unwrap()
+    format!("core::compile_error!(\"{}\")", text).parse().unwrap()
 }
 
 enum Type {
