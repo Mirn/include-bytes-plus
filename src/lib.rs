@@ -94,9 +94,13 @@ struct Input<'a> {
 
 impl<'a> Input<'a> {
     fn parse(input: &'a str) -> Result<Self, TokenStream> {
-        let mut split = input.split_whitespace();
-        let file_name = split.next().unwrap();
+        let fsplit: Vec<&str> = input.split('"').collect();
+        if (fsplit.len() != 3) || (fsplit[0].len() != 0) || (fsplit[2].len() == 0) {
+            return Err(compile_error(format_args!("Unsupported syntax: '{}'", input)));
+        }
+        let file: &str = fsplit[1];
 
+        let mut split = fsplit[2].split_whitespace();
         let typ = match split.next() {
             Some("as") => match split.next() {
                 None => return Err(compile_error("'as' is missing type")),
@@ -110,8 +114,6 @@ impl<'a> Input<'a> {
             Some(other) => return Err(compile_error(format_args!("Unsupported syntax after file name '{}'", other))),
             None => Type::U8,
         };
-
-        let file = file_name.trim_end_matches('"').trim_start_matches('"').trim();
 
         Ok(Self {
             file,
