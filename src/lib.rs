@@ -94,13 +94,20 @@ struct Input<'a> {
 
 impl<'a> Input<'a> {
     fn parse(input: &'a str) -> Result<Self, TokenStream> {
-        let fsplit: Vec<&str> = input.split('"').collect();
-        if (fsplit.len() != 3) || (fsplit[0].len() != 0) || (fsplit[2].len() == 0) {
-            return Err(compile_error(format_args!("Unsupported syntax: '{}'", input)));
-        }
-        let file: &str = fsplit[1];
+        let (file, input) = if let Some(input) = input.strip_prefix('"') {
+            if let Some(end_file_idx) = input.find('"') {
+                (&input[..end_file_idx], &input[end_file_idx+1..])
+            } else {
+                return Err(compile_error("Missing '\"' at the end of file path"));
+            }
+        } else {
+            let mut split = input.split_whitespace();
+            let file = split.next().unwrap();
+            (file, &input[file.len()..])
+        };
 
-        let mut split = fsplit[2].split_whitespace();
+        let mut split = input.trim().split_whitespace();
+
         let typ = match split.next() {
             Some("as") => match split.next() {
                 None => return Err(compile_error("'as' is missing type")),
