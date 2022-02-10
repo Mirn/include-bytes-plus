@@ -27,10 +27,17 @@ enum Type {
 
 impl Type {
     ///returns number of bytes written.
-    fn write_bytes<O: fmt::Write>(&self, out: &mut O, bytes: &[u8]) -> usize {
+    fn write_bytes<O: fmt::Write>(&self, out: &mut O, bytes: &[u8], subdim:Option<usize>, subcnt:&mut usize) -> usize {
         match self {
             Type::U8 => {
                 for byte in bytes {
+					if subdim.is_some() {
+						if *subcnt >= subdim.unwrap() {
+							*subcnt = 0;
+							core::fmt::write(out, format_args!(" ],[ ")).expect("To write string");
+						}
+						*subcnt += 1;
+					}
                     core::fmt::write(out, format_args!("0x{:x}u8, ", byte)).expect("To write string");
                 }
                 bytes.len()
@@ -38,6 +45,13 @@ impl Type {
             Type::U16 => {
                 let mut written = 0;
                 for chunk in bytes.chunks_exact(2) {
+					if subdim.is_some() {
+						if *subcnt >= subdim.unwrap() {
+							*subcnt = 0;
+							core::fmt::write(out, format_args!(" ],[ ")).expect("To write string");
+						}
+						*subcnt += 1;
+					}
                     written += chunk.len();
                     let byte = u16::from_ne_bytes([chunk[0], chunk[1]]);
                     core::fmt::write(out, format_args!("0x{:x}u16, ", byte)).expect("To write string");
@@ -47,6 +61,13 @@ impl Type {
             Type::U32 => {
                 let mut written = 0;
                 for chunk in bytes.chunks_exact(4) {
+					if subdim.is_some() {
+						if *subcnt >= subdim.unwrap() {
+							*subcnt = 0;
+							core::fmt::write(out, format_args!(" ],[ ")).expect("To write string");
+						}
+						*subcnt += 1;
+					}
                     written += chunk.len();
                     let byte = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                     core::fmt::write(out, format_args!("0x{:x}u32, ", byte)).expect("To write string");
@@ -56,6 +77,13 @@ impl Type {
             Type::U64 => {
                 let mut written = 0;
                 for chunk in bytes.chunks_exact(8) {
+					if subdim.is_some() {
+						if *subcnt >= subdim.unwrap() {
+							*subcnt = 0;
+							core::fmt::write(out, format_args!(" ],[ ")).expect("To write string");
+						}
+						*subcnt += 1;
+					}
                     written += chunk.len();
                     let byte = u64::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7]]);
                     core::fmt::write(out, format_args!("0x{:x}u64, ", byte)).expect("To write string");
@@ -65,6 +93,13 @@ impl Type {
             Type::U128 => {
                 let mut written = 0;
                 for chunk in bytes.chunks_exact(16) {
+					if subdim.is_some() {
+						if *subcnt >= subdim.unwrap() {
+							*subcnt = 0;
+							core::fmt::write(out, format_args!(" ],[ ")).expect("To write string");
+						}
+						*subcnt += 1;
+					}
                     written += chunk.len();
                     let byte = u128::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7], chunk[8], chunk[9], chunk[10], chunk[11], chunk[12], chunk[13], chunk[14], chunk[15]]);
                     core::fmt::write(out, format_args!("0x{:x}u128, ", byte)).expect("To write string");
@@ -90,10 +125,12 @@ impl fmt::Display for Type {
 struct Input<'a> {
     file: &'a str,
     typ: Type,
+	subdim: Option<usize>,
 }
 
 impl<'a> Input<'a> {
     fn parse(input: &'a str) -> Result<Self, TokenStream> {
+		let input = input.trim();
         let (file, input) = if let Some(input) = input.strip_prefix('"') {
             if let Some(end_file_idx) = input.find('"') {
                 (&input[..end_file_idx], &input[end_file_idx+1..])
@@ -106,25 +143,68 @@ impl<'a> Input<'a> {
             (file, &input[file.len()..])
         };
 
-        let mut split = input.trim().split_whitespace();
+		let mut subdim = None;
 
-        let typ = match split.next() {
-            Some("as") => match split.next() {
-                None => return Err(compile_error("'as' is missing type")),
-                Some("u8") => Type::U8,
-                Some("u16") => Type::U16,
-                Some("u32") => Type::U32,
-                Some("u64") => Type::U64,
-                Some("u128") => Type::U128,
-                Some(other) => return Err(compile_error(format_args!("'as' specifies unsupported type '{}'", other))),
-            },
-            Some(other) => return Err(compile_error(format_args!("Unsupported syntax after file name '{}'", other))),
-            None => Type::U8,
-        };
+		let typ = if let Some(input) = input.strip_prefix(" as ") {
+			let input = input.trim();
+			let (input, subdim_str) = if let Some(brackets_start_idx) = input.find('[') {
+				if let Some(brackets_end_idx) = input.find(']') {
+					if let Some(semicolon_idx) = input.find(';') {
+						((&input[brackets_start_idx+1 .. semicolon_idx]).trim(), Some((&input[semicolon_idx+1 .. brackets_end_idx]).trim()))
+					} else {
+						return Err(compile_error("Missing ';' at the array declaration"));
+					}					
+				} else {
+					return Err(compile_error("Missing ']' at the array declaration"));
+				}
+			} else {
+				(input.trim(), None)
+			};
+
+			if subdim_str.is_some() {
+				let subdim_str = subdim_str.unwrap();
+				let (dim_str, radix) = if let Some(hex_str) = subdim_str.strip_prefix("0x") {
+					(hex_str, 16)
+				} else {
+					(subdim_str, 10)
+				};
+
+				subdim = if let Ok(dim) = usize::from_str_radix(dim_str, radix) {
+					if dim > 1 {
+						Some(dim)
+					} else {
+						return Err(compile_error("Array dimension must be greather than 1"));
+					}
+				} else {
+					return Err(compile_error(format_args!("Array dimension is incorrect '{}'", subdim_str)));
+				}
+			}
+
+			match input {
+				"" => return Err(compile_error("'as' is missing type")),
+				"u8" => Type::U8,
+				"u16" => Type::U16,
+				"u32" => Type::U32,
+				"u64" => Type::U64,
+				"u128" => Type::U128,
+				other => return Err(compile_error(format_args!("'as' specifies unsupported type '{}'", other))),
+			}
+			} else  {
+				if input == "" {
+					Type::U8
+				} else {
+					if input.strip_prefix(" as").is_some() {
+						return Err(compile_error("'as' is missing type"));
+					} else {
+						return Err(compile_error("'as' expected"));
+					}					
+				}					
+			};
 
         Ok(Self {
             file,
             typ,
+			subdim
         })
     }
 }
@@ -171,21 +251,36 @@ pub fn include_bytes(input: TokenStream) -> TokenStream {
     let mut cursor = 0;
     let mut file_len = 0;
     let mut buf = [0u8; 4096];
-    let mut result = "[".to_owned();
+	let mut sub_cnt:usize = 0;
+    let mut result =  if args.subdim.is_some() {
+		"[[".to_owned()
+	} else {
+		"[".to_owned()
+	};
 
     loop {
         match std::io::Read::read(&mut file, &mut buf[cursor..]) {
             Ok(0) => {
-                result.push(']');
-                if cursor != 0 {
-                    return compile_error(format_args!("File input with size {}b cannot be reinterpret as {}", file_len, args.typ));
+                if args.subdim.is_some() {
+                    result.push(']');                    
                 }
+				result.push(']');
+
+                //if (cursor != 0) || (args.subdim.is_some() && (sub_cnt != 0)) {
+				if cursor != 0 {
+						return compile_error(format_args!("File input with size {}b cannot be reinterpret as {}", file_len, args.typ));
+					// return compile_error(format_args!("File input with size {}b cannot be reinterpret as {}", file_len, if args.subdim.is_some() {
+					// 		format!("{}", args.typ)
+					// } else {
+					// 	format!("[{}; {}]", args.typ, args.subdim.unwrap()) 
+					// }));
+                };				
                 break;
             },
             Ok(size) => {
                 file_len += size;
                 let buf_len = cursor + size;
-                let written = args.typ.write_bytes(&mut result, &buf[..buf_len]);
+                let written = args.typ.write_bytes(&mut result, &buf[..buf_len], args.subdim, &mut sub_cnt);
                 unsafe {
                     core::ptr::copy(buf.as_ptr().add(written), buf.as_mut_ptr(), buf_len - written);
                 }
