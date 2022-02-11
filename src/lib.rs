@@ -267,13 +267,13 @@ impl<'a> Input<'a> {
 ///
 ///Set env variable `RUST_INCLUDE_BYTES_LOG=1` to enable logging of each parsed file statistics
 pub fn include_bytes(input: TokenStream) -> TokenStream {
-    //let is_log = match std::env::var("RUST_INCLUDE_BYTES_LOG") {
-    //     Ok(res) => match res.as_str() {
-    //         "1" | "true" => true,
-    //         _ => false,
-    //     },
-    //     _ => false,
-    // };
+    let is_log = match std::env::var("RUST_INCLUDE_BYTES_LOG") {
+        Ok(res) => match res.as_str() {
+            "1" | "true" => true,
+            _ => false,
+        },
+        _ => false,
+    };
 
     let now = std::time::Instant::now();
 
@@ -330,32 +330,17 @@ pub fn include_bytes(input: TokenStream) -> TokenStream {
         }
     }
 
-    //if is_log 
-    {
+    if is_log {
         let elapsed = now.elapsed();
         let secs = elapsed.as_secs();
         let ms = elapsed.subsec_millis();
 
         if secs > 0 {
-            println!("{} #1: parsed {}b in {}.{} seconds", args.file, file_len, secs, ms);
+            println!("{}: parsed {}b in {}.{} seconds", args.file, file_len, secs, ms);
         } else {
-            println!("{} #1: parsed {}b in {} ms", args.file, file_len, ms);
+            println!("{}: parsed {}b in {} ms", args.file, file_len, ms);
         }
     }
 
-    let now = std::time::Instant::now();
-    let res = result.parse().expect("To parse");
-    {
-        let elapsed = now.elapsed();
-        let secs = elapsed.as_secs();
-        let ms = elapsed.subsec_millis();
-
-        if secs > 0 {
-            println!("{} #2: parsed {}b in {}.{} seconds", args.file, file_len, secs, ms);
-        } else {
-            println!("{} #2: parsed {}b in {} ms", args.file, file_len, ms);
-        }
-    }
-
-    res
+    result.parse().expect("To parse")
 }
